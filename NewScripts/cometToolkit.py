@@ -76,11 +76,6 @@ def PlotFits(path, wcsPath="", vmin=None, vmax=None,
         plt.ylabel("CCD Y")
 
     
-    # Flip declination axis
-    plt.gca().invert_yaxis()
-
-
-
 
 ###### STACKING ########
 
@@ -192,3 +187,36 @@ def FindCometCentre(path, filter, maxCentreDistance=500,
     cometCentre = (updatedSources[i]["xcentroid"], updatedSources[i]["ycentroid"])
 
     return cometCentre
+
+
+
+def StackImages(paths):
+
+    imagesToStack = []
+
+    for path in paths:
+
+        image = fits.open(path)[0].data
+
+        imagesToStack.append(image)
+
+    stackedImage = np.median(imagesToStack, axis=0) * np.sqrt(len(paths))
+
+    return stackedImage
+
+
+##### ACTIVITY #####
+
+def PlotAfrho(apertureRange, activityValues):
+    """
+    Plots activity curve as a function of aperture
+    
+    Positional Arguments:
+    apertureRange -- list of apertures
+    activityValues -- list of corresponding activities
+    """
+
+    plt.plot(apertureRange, activityValues, color="black")
+    plt.xlabel(r"$\rho$ [km]")
+    plt.ylabel(r"$Af\rho$ [cm]")
+
