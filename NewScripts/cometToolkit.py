@@ -5,6 +5,8 @@ from astropy.wcs import WCS
 from astropy.stats import mad_std
 
 from photutils.detection import DAOStarFinder
+from photutils.aperture import CircularAperture, aperture_photometry
+from photutils.background import Background2D
 
 from natsort import natsorted
 
@@ -255,9 +257,70 @@ def StackImages(paths):
     return stackedImage
 
 
+##### APERTURE PHOTOMETRY #####
+
+def DetermineStarZeroPoint(stackedImage, numStacks, coordinatesList, calibratedMagnitudes, apertureRadius=30, tolerance=20, showPlot=False):
+    
+    """
+    For a list of star coordinates, and corresponding list
+    of calibrated magnitudes, returns the zeropoint for each star.
+
+    POSITIONAL ARGUMENTS:
+    stackedImage -- fits image data of stacked images with respect to background (must be in comet images)
+    numStacks -- number of images used to create the stacked image
+    coordinatesList -- a list of tuples with star x and y in pixel coordinates
+    calibratedMagnitudes -- a list of calibration magnitudes corresponding to the stars
+
+    KEYWORD ARGUMENTS:
+    apertureRadius -- The DAOStarFinder aperture radius to do calculations in
+    tolerance -- The pixel tolerance on the coordinates list
+    showPlot -- Plots the sources from DAOStarFinder with all stars within tolerance
+    """
+
+    sources = SearchStars(stackedImage, showPlot=showPlot)
+
+    zeroPoints = []
+
+    # Finding stars
+    for i, starCoords in enumerate(coordinatesList):
+        starX = starCoords[0]
+        starY = starCoords[1]
+
+        referenceStarIndices = np.where((abs(sources["xcentroid"] - starX) < tolerance) & (abs(sources["ycentroid"] - starY) < tolerance))
+
+        if showPlot:        
+            plt.scatter(sources[referenceStarIndices]["xcentroid"], sources[referenceStarIndices]["ycentroid"], alpha=0.5, color="orange")
+
+        #print(sources[referenceStarIndices])
+        if len(sources[referenceStarIndices]) > 1:
+            raise Exception("Too many stars found within tolerance for star: " + str(i))
+
+        if len(sources[referenceStarIndices]) == 0:
+            raise Exception("No stars found within tolerance for star: " + str(i))
+        
+        # Create aperture
+        aperture = CircularAperture((sources[referenceStarIndices][0]["xcentroid"], sources[referenceStarIndices][0]["ycentroid"]), r=apertureRadius)
+
+        # Find background
+        background = Background2D(stackedImage, 50).background
+
+        phot_table = aperture_photometry(stackedImage - background, aperture)
+        
+        observedMagnitude = -2.5 * np.log10( phot_table["aperture_sum"] / (120 * numStacks))
+
+        
+        zeroPoint = calibratedMagnitudes[i] - observedMagnitude
+        zeroPoints.append(zeroPoint[0])
+
+    return zeroPoints
+
+
+
+
 ##### ACTIVITY #####
 
-def PlotAfrho(apertureRange, activityValues):
+def PlotAfrho(apertureRange, activityValuesV, activityValuesR, activityValuesB, colours=["green", "red", "blue"],
+                labels=["V", "R", "B"]):
     """
     Plots activity curve as a function of aperture
     
@@ -266,7 +329,12 @@ def PlotAfrho(apertureRange, activityValues):
     activityValues -- list of corresponding activities
     """
 
-    plt.plot(apertureRange, activityValues, color="black")
-    plt.xlabel(r"$\rho$ [km]")
-    plt.ylabel(r"$Af\rho$ [cm]")
+    fig, ax = plt.subplots()
+
+    for i, activityValues in enumerate([activityValuesV, activityValuesR, activityValuesB]):
+        ax.plot(apertureRange, activityValues, color=colours[i], label=labels[i])
+
+    ax.set_xlabel(r"$\rho$ [km]")
+    ax.set_ylabel(r"$Af\rho$ [cm]")
+    ax.legend()
 
