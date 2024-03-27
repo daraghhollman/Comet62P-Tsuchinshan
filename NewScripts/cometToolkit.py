@@ -138,8 +138,8 @@ def SearchStars(image, fwhm=8., threshold=4, showPlot=False):
 
 
 
-def FindCometCentre(path, filter, maxCentreDistance=500,
-                    showPlot=False):
+def FindCometCentre(path, filter, day, maxCentreDistance=500,
+                    roughPosition=(1024, 1024), showPlot=False):
     
     image = GetImage(path)
 
@@ -148,19 +148,49 @@ def FindCometCentre(path, filter, maxCentreDistance=500,
 
     # Remove sources based on peak counts and distance from centre
 
-    # Values calibrated manually per filter
+    # Values calibrated manually per filter per day
     match filter:
         case "V":
-            maxPeak = 1400
-            minPeak = 700
+            if day == 0:
+                maxPeak = 1400
+                minPeak = 700
+            elif day == 1:
+                maxPeak = 1400
+                minPeak = 700
+            elif day == 2:
+                maxPeak = 1400
+                minPeak = 700
+            elif day == 3:
+                maxPeak = 1400
+                minPeak = 200
 
         case "R":
-            maxPeak = 2400
-            minPeak = 2000
+            if day == 0:
+                maxPeak = 2400
+                minPeak = 2000
+            elif day == 1:
+                maxPeak = 2400
+                minPeak = 1000
+            elif day == 2:
+                maxPeak = 2500
+                minPeak = 900
+            elif day == 3:
+                maxPeak = 1800
+                minPeak = 200
 
         case "B":
-            maxPeak = 1000
-            minPeak = 200
+            if day == 0:
+                maxPeak = 500
+                minPeak = 200
+            elif day == 1:
+                maxPeak = 500
+                minPeak = 100
+            elif day == 2:
+                maxPeak = 500
+                minPeak = 200
+            elif day == 3:
+                maxPeak = 500
+                minPeak = 100
 
 
     removeIndices = []
@@ -172,12 +202,11 @@ def FindCometCentre(path, filter, maxCentreDistance=500,
             removeIndices.append(i)
 
         # remove based on position
-        if np.sqrt( (sources[i]["xcentroid"] - 1024)**2 + (sources[i]["ycentroid"] - 1024)**2 ) > maxCentreDistance:
+        if np.sqrt( (sources[i]["xcentroid"] - roughPosition[0])**2 + (sources[i]["ycentroid"] - roughPosition[1])**2 ) > maxCentreDistance:
             removeIndices.append(i)
 
     updatedSources = sources
     updatedSources.remove_rows(removeIndices)
-
     
     if showPlot:
         
@@ -320,7 +349,7 @@ def DetermineStarZeroPoint(stackedImage, numStacks, coordinatesList, calibratedM
 ##### ACTIVITY #####
 
 def PlotAfrho(apertureRange, activityValuesV, activityValuesR, activityValuesB, colours=["green", "red", "blue"],
-                labels=["V", "R", "B"]):
+                labels=["V", "R", "B"], figsize=(8,8)):
     """
     Plots activity curve as a function of aperture
     
@@ -329,7 +358,7 @@ def PlotAfrho(apertureRange, activityValuesV, activityValuesR, activityValuesB, 
     activityValues -- list of corresponding activities
     """
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
 
     for i, activityValues in enumerate([activityValuesV, activityValuesR, activityValuesB]):
         ax.plot(apertureRange, activityValues, color=colours[i], label=labels[i])
