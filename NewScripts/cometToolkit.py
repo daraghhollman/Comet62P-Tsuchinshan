@@ -271,7 +271,7 @@ def MedianStack(imagesList, preserveAvgCounts=False):
         return np.median(imagesList, axis=0) * np.sqrt(len(imagesList))
 
 
-def StackImages(paths):
+def StackImages(paths, preserveAvgCounts=True):
 
     imagesToStack = []
 
@@ -281,7 +281,7 @@ def StackImages(paths):
 
         imagesToStack.append(image)
 
-    stackedImage = MedianStack(imagesToStack, preserveAvgCounts=True)
+    stackedImage = MedianStack(imagesToStack, preserveAvgCounts=preserveAvgCounts)
 
     return stackedImage
 
@@ -306,7 +306,7 @@ def DetermineStarZeroPoint(stackedImage, numStacks, coordinatesList, calibratedM
     showPlot -- Plots the sources from DAOStarFinder with all stars within tolerance
     """
 
-    sources = SearchStars(stackedImage, showPlot=showPlot)
+    sources = SearchStars(stackedImage, fwhm=8, threshold=16, showPlot=showPlot)
 
     zeroPoints = []
 
