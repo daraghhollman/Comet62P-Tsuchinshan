@@ -143,8 +143,11 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
     
     image = GetImage(path)
 
+    mean, median, std = sigma_clipped_stats(image, sigma=5.0)
+    background = median
+
     # FInd all sources in sky
-    sources = SearchStars(image, fwhm=8, threshold=16, showPlot=False)
+    sources = SearchStars(image - background, fwhm=3, threshold=5*std, showPlot=False)
 
     # Remove sources based on peak counts and distance from centre
 
