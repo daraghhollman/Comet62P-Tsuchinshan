@@ -4,6 +4,8 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.stats import mad_std
 
+from astropy.stats import sigma_clipped_stats
+
 from photutils.detection import DAOStarFinder
 from photutils.aperture import CircularAperture, aperture_photometry
 from photutils.background import Background2D
@@ -139,15 +141,18 @@ def SearchStars(image, fwhm=8., threshold=4, showPlot=False):
 
 
 def FindCometCentre(path, filter, day, maxCentreDistance=500,
-                    roughPosition=(1024, 1024), showPlot=False):
+                    roughPosition=(1024, 1024), showPlot=False, useBackground=True):
     
     image = GetImage(path)
 
     mean, median, std = sigma_clipped_stats(image, sigma=5.0)
     background = median
 
+    if useBackground:
+        image = image - background
+
     # FInd all sources in sky
-    sources = SearchStars(image - background, fwhm=3, threshold=5*std, showPlot=False)
+    sources = SearchStars(image, fwhm=8, threshold=16, showPlot=False)
 
     # Remove sources based on peak counts and distance from centre
 
@@ -158,8 +163,8 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
                 maxPeak = 1400
                 minPeak = 700
             elif day == 1:
-                maxPeak = 1400
-                minPeak = 700
+                maxPeak = 2000
+                minPeak = 0
             elif day == 2:
                 maxPeak = 1400
                 minPeak = 700
@@ -183,8 +188,8 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
 
         case "B":
             if day == 0:
-                maxPeak = 500
-                minPeak = 200
+                maxPeak = 1000
+                minPeak = 0
             elif day == 1:
                 maxPeak = 500
                 minPeak = 100
@@ -210,6 +215,7 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
 
     updatedSources = sources
     updatedSources.remove_rows(removeIndices)
+    #print(f"removing: {removeIndices}")
     
     if showPlot:
         
@@ -230,9 +236,13 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
 
         plt.imshow(thresholdIndices)
 
+
         for source in sources:
             plt.scatter(source["xcentroid"], source["ycentroid"])
 
+
+    if len(updatedSources) == 0:
+        raise Exception("Comet not found!")
 
     # Add up pixels around the source
     # The comet will have brighter surrounding pixels for sources
@@ -255,7 +265,7 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
             cometId = i
 
     
-    cometCentre = (updatedSources[i]["xcentroid"], updatedSources[i]["ycentroid"])
+    cometCentre = (updatedSources[cometId]["xcentroid"], updatedSources[cometId]["ycentroid"])
 
     return cometCentre
 
