@@ -10,6 +10,8 @@ from photutils.detection import DAOStarFinder
 from photutils.aperture import CircularAperture, aperture_photometry
 from photutils.background import Background2D
 
+from scipy.optimize import curve_fit
+
 from natsort import natsorted
 
 import matplotlib.pyplot as plt
@@ -140,8 +142,8 @@ def SearchStars(image, fwhm=8., threshold=4, showPlot=False):
 
 
 
-def FindCometCentre(path, filter, day, maxCentreDistance=500,
-                    roughPosition=(1024, 1024), showPlot=False, useBackground=True):
+def FindCometCentre(path, filter, day, maxCentreDistance=500, method="gaussian", maxfev=800,
+                    roughPosition=(1024, 1024), p0=[], showPlot=False, useBackground=True):
     
     image = GetImage(path)
 
@@ -151,121 +153,148 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500,
     if useBackground:
         image = image - background
 
-    # FInd all sources in sky
-    sources = SearchStars(image, fwhm=8, threshold=16, showPlot=False)
+    def Gaussian_2d(values,A,mu_x,mu_y,sigma_x,sigma_y):
+        x, y = values
 
-    # Remove sources based on peak counts and distance from centre
+        sigma_x = abs(sigma_x)
+        sigma_y = abs(sigma_y)
 
-    # Values calibrated manually per filter per day
-    match filter:
-        case "V":
-            if day == 0:
-                maxPeak = 1400
-                minPeak = 700
-            elif day == 1:
-                maxPeak = 2000
-                minPeak = 0
-            elif day == 2:
-                maxPeak = 1400
-                minPeak = 700
-            elif day == 3:
-                maxPeak = 1400
-                minPeak = 200
+        G = A*np.exp(-(x-mu_x)**2/(2*sigma_x**2) - (y-mu_y)**2/(2*sigma_y**2) )
+        return np.ravel(G)
 
-        case "R":
-            if day == 0:
-                maxPeak = 2400
-                minPeak = 2000
-            elif day == 1:
-                maxPeak = 2400
-                minPeak = 1000
-            elif day == 2:
-                maxPeak = 2500
-                minPeak = 900
-            elif day == 3:
-                maxPeak = 1800
-                minPeak = 200
-
-        case "B":
-            if day == 0:
-                maxPeak = 1000
-                minPeak = 0
-            elif day == 1:
-                maxPeak = 500
-                minPeak = 100
-            elif day == 2:
-                maxPeak = 500
-                minPeak = 200
-            elif day == 3:
-                maxPeak = 500
-                minPeak = 100
-
-
-    removeIndices = []
-
-    for i in range(len(sources)):
-
-        # remove based on peak
-        if sources[i]["peak"] > maxPeak or sources[i]["peak"] < minPeak:
-            removeIndices.append(i)
-
-        # remove based on position
-        if np.sqrt( (sources[i]["xcentroid"] - roughPosition[0])**2 + (sources[i]["ycentroid"] - roughPosition[1])**2 ) > maxCentreDistance:
-            removeIndices.append(i)
-
-    updatedSources = sources
-    updatedSources.remove_rows(removeIndices)
-    #print(f"removing: {removeIndices}")
-    
-    if showPlot:
+    if method == "gaussian":
         
+        x = np.linspace(len(image[0]) * 0.3, 0.70 * len(image[0]), len(image[0]))
+        y = np.linspace(len(image[0]) * 0.3, 0.70 * len(image[:,0]), len(image[:,0]))
+        x, y = np.meshgrid(x, y)
+
+        pars, cov = curve_fit(Gaussian_2d, (x, y), np.ravel(image), p0, maxfev=maxfev)
+
+        if showPlot:
+            plt.imshow(image, vmin=300, vmax=500)
+
+            fittedGaussian = Gaussian_2d((x,y),*pars).reshape(len(image[:,0]), len(image[0]))
+            plt.contour(x, y, fittedGaussian, 10, colors='w')
+
+        print(pars)
+        return (pars[1], pars[2])
+
+    elif method == "starfinder":
+        # FInd all sources in sky
+        sources = SearchStars(image, fwhm=8, threshold=16, showPlot=False)
+
+        # Remove sources based on peak counts and distance from centre
+
+        # Values calibrated manually per filter per day
         match filter:
             case "V":
-                upperThreshold = 1200
-                lowerThreshold = 200
+                if day == 0:
+                    maxPeak = 1400
+                    minPeak = 700
+                elif day == 1:
+                    maxPeak = 2000
+                    minPeak = 0
+                elif day == 2:
+                    maxPeak = 1400
+                    minPeak = 700
+                elif day == 3:
+                    maxPeak = 1400
+                    minPeak = 200
 
             case "R":
-                upperThreshold = 1000
-                lowerThreshold = 500
+                if day == 0:
+                    maxPeak = 2400
+                    minPeak = 2000
+                elif day == 1:
+                    maxPeak = 2400
+                    minPeak = 1000
+                elif day == 2:
+                    maxPeak = 2500
+                    minPeak = 900
+                elif day == 3:
+                    maxPeak = 1800
+                    minPeak = 200
 
             case "B":
-                upperThreshold = 1000
-                lowerThreshold = 200
+                if day == 0:
+                    maxPeak = 1000
+                    minPeak = 0
+                elif day == 1:
+                    maxPeak = 500
+                    minPeak = 100
+                elif day == 2:
+                    maxPeak = 500
+                    minPeak = 200
+                elif day == 3:
+                    maxPeak = 500
+                    minPeak = 100
 
-        thresholdIndices = np.where((image > lowerThreshold)  & (image < upperThreshold), 1, 0)
 
-        plt.imshow(thresholdIndices)
+        removeIndices = []
+
+        for i in range(len(sources)):
+
+            # remove based on peak
+            if sources[i]["peak"] > maxPeak or sources[i]["peak"] < minPeak:
+                removeIndices.append(i)
+
+            # remove based on position
+            if np.sqrt( (sources[i]["xcentroid"] - roughPosition[0])**2 + (sources[i]["ycentroid"] - roughPosition[1])**2 ) > maxCentreDistance:
+                removeIndices.append(i)
+
+        updatedSources = sources
+        updatedSources.remove_rows(removeIndices)
+        #print(f"removing: {removeIndices}")
+        
+        if showPlot:
+            
+            match filter:
+                case "V":
+                    upperThreshold = 1200
+                    lowerThreshold = 200
+
+                case "R":
+                    upperThreshold = 1000
+                    lowerThreshold = 500
+
+                case "B":
+                    upperThreshold = 1000
+                    lowerThreshold = 200
+
+            thresholdIndices = np.where((image > lowerThreshold)  & (image < upperThreshold), 1, 0)
+
+            plt.imshow(thresholdIndices)
 
 
-        for source in sources:
-            plt.scatter(source["xcentroid"], source["ycentroid"])
+            for source in sources:
+                plt.scatter(source["xcentroid"], source["ycentroid"])
 
 
-    if len(updatedSources) == 0:
-        raise Exception("Comet not found!")
+        if len(updatedSources) == 0:
+            raise Exception("Comet not found!")
 
-    # Add up pixels around the source
-    # The comet will have brighter surrounding pixels for sources
-    # of equal counts
-    r = 50
-    brightestCounts = 0
-    cometId = None
+        # Add up pixels around the source
+        # The comet will have brighter surrounding pixels for sources
+        # of equal counts
+        r = 50
+        brightestCounts = 0
+        cometId = None
 
-    # Add pixels around source in radius
-    for i, source in enumerate(updatedSources):
+        # Add pixels around source in radius
+        for i, source in enumerate(updatedSources):
 
-        # Loop through and add pixels in box size r
-        x = round(source["xcentroid"])
-        y = round(source["ycentroid"])
+            # Loop through and add pixels in box size r
+            x = round(source["xcentroid"])
+            y = round(source["ycentroid"])
 
-        counts = np.sum(image[x - r : x + r, y - r : y + r])
+            counts = np.sum(image[x - r : x + r, y - r : y + r])
 
-        if counts > brightestCounts:
-            brightestCounts = counts
-            cometId = i
+            if counts > brightestCounts:
+                brightestCounts = counts
+                cometId = i
 
-    
-    cometCentre = (updatedSources[cometId]["xcentroid"], updatedSources[cometId]["ycentroid"])
+        
+        cometCentre = (updatedSources[cometId]["xcentroid"], updatedSources[cometId]["ycentroid"])
 
     return cometCentre
 
