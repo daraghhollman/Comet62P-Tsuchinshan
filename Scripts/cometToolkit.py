@@ -145,7 +145,10 @@ def SearchStars(image, fwhm=8., threshold=4, showPlot=False):
 def FindCometCentre(path, filter, day, maxCentreDistance=500, method="gaussian", maxfev=800,
                     roughPosition=(1024, 1024), p0=[], showPlot=False, useBackground=True):
     
-    image = GetImage(path)
+    if type(path) == str:
+        image = GetImage(path)
+    else:
+        image = path
 
     mean, median, std = sigma_clipped_stats(image, sigma=5.0)
     background = median
