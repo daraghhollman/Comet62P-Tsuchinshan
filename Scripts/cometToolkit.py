@@ -302,8 +302,6 @@ def FindCometCentre(path, filter, day, maxCentreDistance=500, method="gaussian",
     return cometCentre
 
 
-
-
 def MedianStack(imagesList, preserveAvgCounts=False):
     """
     Correctly median stacks a list of images by multiplying by the sqrt of the number of images
