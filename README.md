@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.11072638.svg)](https://doi.org/10.5281/zenodo.11072638)
+
 # Comet 62P/Tsuchinshan
 ## A photometric investigation of an evolving dust production rate and other cometary properties at small distances post-perhelion
 
